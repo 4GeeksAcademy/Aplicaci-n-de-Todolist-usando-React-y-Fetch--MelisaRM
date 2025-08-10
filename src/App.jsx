@@ -1,14 +1,29 @@
 import React, { useEffect, useState } from "react";
 
-function TodoList() {
+function App() {
   const [taskInput, setTaskInput] = useState("");
   const [todos, setTodos] = useState([]);
   const url = "https://playground.4geeks.com/todo";
   const user = "MeliRM";
 
   useEffect(() => {
-    getTodos();
+    createUserIfNotExists();
   }, []);
+
+  
+  const createUserIfNotExists = () => {
+    fetch(`${url}/users/${user}`)
+      .then((res) => {
+        if (res.ok) return res.json();
+        return fetch(`${url}/users/${user}`, {
+          method: "POST",
+          body: JSON.stringify([]),
+          headers: { "Content-Type": "application/json" }
+        }).then(() => ({ todos: [] }));
+      })
+      .then(() => getTodos())
+      .catch((err) => console.error("Error creando usuario:", err));
+  };
 
   
   const getTodos = () => {
@@ -26,7 +41,7 @@ function TodoList() {
     const trimmed = taskInput.trim();
     if (!trimmed) return;
 
-    const newTask = { label: trimmed, done: false };
+    const newTask = { label: trimmed, is_done: false };
 
     fetch(`${url}/todos/${user}`, {
       method: "POST",
@@ -45,24 +60,33 @@ function TodoList() {
   };
 
   
-  const updateTodos = (newTodos) => {
-    fetch(`${url}/users/${user}/todos`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newTodos)
+  const deleteTask = (id) => {
+    fetch(`${url}/todos/${id}`, {
+      method: "DELETE"
     })
       .then((res) => {
-        if (!res.ok) throw new Error("Error al actualizar tareas");
-        return res.json();
+        if (!res.ok) throw new Error("Error al eliminar tarea");
+        getTodos();
       })
-      .then(() => setTodos(newTodos))
       .catch((err) => console.error(err));
   };
 
   
-  const deleteTask = (index) => {
-    const newTodos = todos.filter((_, i) => i !== index);
-    updateTodos(newTodos);
+  const clearAllTasks = async () => {
+    try {
+      if (todos.length === 0) return;
+
+      await Promise.all(
+        todos.map((task) =>
+          fetch(`${url}/todos/${task.id}`, { method: "DELETE" })
+        )
+      );
+
+      setTodos([]);
+      console.log("Todas las tareas eliminadas.");
+    } catch (err) {
+      console.error("Error al limpiar todas las tareas:", err);
+    }
   };
 
   return (
@@ -77,14 +101,23 @@ function TodoList() {
         onKeyDown={(e) => e.key === "Enter" && addTask()}
       />
 
+      <button onClick={clearAllTasks} style={{ margin: "10px" }}>
+        Limpiar todo
+      </button>
+
       <ul className="task-list">
         {todos.length === 0 ? (
           <li className="no-task">No hay tareas</li>
         ) : (
-          todos.map((task, index) => (
-            <li key={index} className="task-item">
+          todos.map((task) => (
+            <li key={task.id} className="task-item">
               {task.label}
-              <span className="delete-icon" onClick={() => deleteTask(index)}>🗑️</span>
+              <span
+                className="delete-icon"
+                onClick={() => deleteTask(task.id)}
+              >
+                🗑️
+              </span>
             </li>
           ))
         )}
@@ -93,7 +126,4 @@ function TodoList() {
   );
 }
 
-export default TodoList;
-
-
-
+export default App;
